@@ -1,0 +1,49 @@
+version: "3.5"
+services:
+  zookeeper:
+    image: confluentinc/cp-zookeeper:6.0.2
+    ports:
+      - "2181:2181"
+    networks:
+      - confluent
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+  
+  kafka1:
+    image: confluentinc/cp-kafka:6.0.2
+    networks:
+      - confluent
+    environment:
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_BROKER_ID: 101
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka1:9092
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+      KAFKA_DELETE_TOPIC_ENABLE: "true"
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 100
+
+  producer:
+    image: confluentinc/cp-kafka:6.0.2
+    networks:
+      - confluent
+    command: >
+      sh -c 'echo {\"message\": \"test message\"} | kafka-console-producer --bootstrap-server kafka1:9092 --topic test_topic --compression-codec snappy'
+    depends_on:
+      - kafka1
+
+  td-agent:
+    image: geraudster/td-agent:4-buster
+    build: td-agent
+    command: /usr/sbin/td-agent -c /etc/td-agent/td-agent.conf
+    networks:
+      - confluent
+    volumes:
+      - ${PWD}/td-agent.conf:/etc/td-agent/td-agent.conf:ro
+    depends_on:
+      - kafka1
+
+networks:
+  confluent:
